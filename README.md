@@ -18,6 +18,91 @@ npx skills add joeseesun/feishu-lark-agent
 
 ---
 
+### 自然语言对话示例
+
+安装并配置完成后，直接和 Claude Code 说话就好，不需要记任何命令。
+
+---
+
+**💬 发消息**
+
+> 「发飞书消息给 zhang@company.com，说今天的站会改到11点」
+
+Claude 自动通过邮箱查到 open_id，发送消息，返回确认。
+
+---
+
+> 「给乔木龙虾俱乐部群发一条消息：周五下午茶，大家来玩」
+
+Claude 先列出群聊找到 chat_id，再发送到群组。
+
+---
+
+**📄 文档**
+
+> 「帮我创建一个飞书文档，标题「2026 Q2 OKR」，内容从这个文件读：/tmp/okr.md」
+
+Claude 创建文档，写入内容，自动将你加为编辑者，返回文档链接。
+
+---
+
+> 「读一下这个飞书文档的内容：https://xxx.feishu.cn/docx/DOC_ID」
+
+Claude 提取 URL 中的 document_id，调用接口返回全文。
+
+---
+
+**📅 日历**
+
+> 「明天下午3点到4点，帮我创建一个「产品评审会」日程，地点3楼大会议室」
+
+Claude 解析时间、创建日程，并自动发送日历邀请给你（需配置 `FEISHU_OWNER_OPEN_ID`）。
+
+---
+
+> 「帮我看看本周还有哪些日程」
+
+Claude 查询未来7天的日历事件，整理后展示给你。
+
+---
+
+**📊 多维表格**
+
+> 「在我的读书记录表格里加一条：《穷查理宝典》，查理·芒格，状态在读」
+> （表格链接：https://xxx.feishu.cn/base/APP_TOKEN）
+
+Claude 先查表格字段结构，再按字段名写入记录。
+
+---
+
+> 「把多维表格里所有状态为「待审核」的记录都列出来」
+
+Claude 用 Feishu 过滤语法查询并展示结果。
+
+---
+
+**✅ 任务**
+
+> 「帮我创建一个飞书任务：准备季度述职，截止日期3月25日，备注要准备PPT和数据」
+
+Claude 调用 Task API 创建任务并返回任务 ID。
+
+---
+
+**🔍 复合场景**
+
+> 「查一下公司有没有叫王芳的同事，找到了就给她发一条飞书消息，说明天的设计评审希望她参加」
+
+Claude 先用 `user search` 找人，确认后再发消息，两步自动完成。
+
+---
+
+> 「帮我把 /tmp/meeting_notes.md 的内容创建成飞书文档，然后发消息给 product-team@company.com 告诉他们文档链接」
+
+Claude 创建文档拿到 URL，再发消息附上链接，一气呵成。
+
+---
+
 ### 第一步：创建飞书自建应用，获取 App ID 和 App Secret
 
 > 这是唯一需要手动操作的步骤，约 5 分钟完成。
@@ -295,6 +380,91 @@ Give Claude Code full control over Feishu/Lark — send messages, create docs, m
 ```bash
 npx skills add joeseesun/feishu-lark-agent
 ```
+
+---
+
+### Natural Language Examples
+
+Once installed and configured, just talk to Claude Code naturally — no commands to memorize.
+
+---
+
+**💬 Messaging**
+
+> "Send a Feishu message to zhang@company.com: standup moved to 11am today"
+
+Claude looks up the open_id by email, sends the message, and confirms.
+
+---
+
+> "Post in the team group chat: Friday afternoon tea, everyone's invited"
+
+Claude finds the chat_id from your chat list and sends to the group.
+
+---
+
+**📄 Documents**
+
+> "Create a Feishu doc titled '2026 Q2 OKR', content from /tmp/okr.md"
+
+Claude creates the doc, writes the content, auto-grants you edit access, and returns the link.
+
+---
+
+> "Read the content of this Feishu doc: https://xxx.feishu.cn/docx/DOC_ID"
+
+Claude extracts the document_id from the URL and returns the full text.
+
+---
+
+**📅 Calendar**
+
+> "Schedule 'Product Review' tomorrow 3-4pm in Conference Room 3F"
+
+Claude parses the time, creates the event, and auto-invites you (requires `FEISHU_OWNER_OPEN_ID`).
+
+---
+
+> "What's on my calendar this week?"
+
+Claude queries the next 7 days of events and summarizes them.
+
+---
+
+**📊 Bitable**
+
+> "Add a record to my reading list: Poor Charlie's Almanack, Charlie Munger, status: reading"
+> (Table URL: https://xxx.feishu.cn/base/APP_TOKEN)
+
+Claude checks the field schema first, then writes the record with correct field names.
+
+---
+
+> "Show me all records in the Bitable where status is 'Pending Review'"
+
+Claude queries with Feishu filter syntax and displays the results.
+
+---
+
+**✅ Tasks**
+
+> "Create a task: Prepare quarterly review, due March 25, note: need PPT and data dashboard"
+
+Claude calls the Task API, creates the task, and returns the task ID.
+
+---
+
+**🔍 Multi-step**
+
+> "Find a colleague named Wang Fang and send her a message saying I'd like her to join tomorrow's design review"
+
+Claude searches for the user, confirms the match, then sends the message — two steps automatically chained.
+
+---
+
+> "Create a Feishu doc from /tmp/meeting_notes.md, then message product-team@company.com with the doc link"
+
+Claude creates the doc, gets the URL, then sends the message with the link attached — all in one go.
 
 ---
 
