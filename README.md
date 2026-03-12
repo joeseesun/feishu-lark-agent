@@ -1,290 +1,520 @@
 # feishu-lark-agent
 
-Comprehensive Feishu/Lark workspace agent. Handles messages, docs, bitable (multi-dimensional tables
+[中文](#中文文档) | [English](#english-docs)
 
-## 安装
+---
+
+## 中文文档
+
+让 Claude Code 直接操控飞书——发消息、建文档、管日程、写多维表格，全部用自然语言完成。
+
+> 零依赖 Python 脚本，调用飞书开放 API，配合 Claude Code 使用效果最佳。
+
+### 安装
 
 ```bash
 npx skills add joeseesun/feishu-lark-agent
 ```
 
-# Feishu Lark Agent
+---
 
-Full-featured Feishu/Lark workspace integration. Powered by `feishu.py` — a zero-dependency Python CLI using Feishu Open API.
+### 第一步：创建飞书自建应用，获取 App ID 和 App Secret
 
-## Script Path
+> 这是唯一需要手动操作的步骤，约 5 分钟完成。
+
+**1. 进入飞书开发者后台**
+
+打开 [https://open.feishu.cn/app](https://open.feishu.cn/app)，用飞书账号登录。
+
+**2. 创建自建应用**
+
+点击右上角 **「创建企业自建应用」**，填写应用名称（如「我的 AI 助手」）和描述。
+
+**3. 获取 App ID 和 App Secret**
+
+创建完成后，进入应用 → **「凭证与基础信息」**，复制：
 
 ```
-~/.claude/skills/feishu-lark-agent/feishu.py
+App ID:     cli_xxxxxxxxxxxxxxxxx
+App Secret: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-## Prerequisites
+**4. 开通权限**
+
+进入 **「权限管理」**，搜索并开通以下权限（按需开通）：
+
+| 权限标识 | 用途 |
+|---------|------|
+| `im:message` | 读取消息 |
+| `im:message:send_as_bot` | 发送消息 |
+| `docx:document` | 创建/读取文档 |
+| `drive:drive` | 文档授权管理 |
+| `bitable:app` | 多维表格操作 |
+| `calendar:calendar` | 日历读写 |
+| `task:task:write` | 任务管理 |
+| `contact:user.id:readonly` | 按邮箱查用户 |
+
+**5. 发布应用**
+
+进入 **「版本管理与发布」** → 创建版本 → 申请发布。企业管理员审批后生效（自己是管理员可立即通过）。
+
+---
+
+### 第二步：获取你的 Open ID（可选但推荐）
+
+Open ID 是飞书中每个用户的唯一标识符（`ou_` 开头）。设置后，创建文档/日程时会自动将你加为参与者，无需手动共享。
+
+**方法一：通过接口获取（推荐）**
+
+先完成第三步配置，再运行：
 
 ```bash
-# Credentials must be set (already in ~/.zshrc)
-export FEISHU_APP_ID=your_app_id_here
-export FEISHU_APP_SECRET=your_app_secret_here
+python3 ~/.claude/skills/feishu-lark-agent/feishu.py user get --email 你的飞书邮箱
+# 返回结果中的 user_id 字段即为 Open ID（ou_ 开头）
 ```
 
-Run as:
+**方法二：通过群聊获取**
+
+如果你是某个群的群主：
+
 ```bash
-source ~/.zshrc && python3 ~/.claude/skills/feishu-lark-agent/feishu.py <category> <action> [--key value ...]
+python3 ~/.claude/skills/feishu-lark-agent/feishu.py msg chats
+# 找到你创建的群，owner_id 即为你的 Open ID
+```
+
+**方法三：通过开发者后台获取**
+
+在飞书应用后台 → **「事件与回调」** 中，向 Bot 发一条消息，查看回调日志里的 `sender.sender_id.open_id`。
+
+---
+
+### 第三步：配置环境变量
+
+将以下内容添加到 `~/.zshrc`（或 `~/.bashrc`）：
+
+```bash
+export FEISHU_APP_ID=cli_你的AppID
+export FEISHU_APP_SECRET=你的AppSecret
+
+# 可选：设置后，创建文档/日程时自动将你加为参与者
+export FEISHU_OWNER_OPEN_ID=ou_你的OpenID
+```
+
+执行生效：
+
+```bash
+source ~/.zshrc
+```
+
+验证配置是否成功：
+
+```bash
+python3 ~/.claude/skills/feishu-lark-agent/feishu.py msg chats
+# 看到群列表说明配置成功 ✓
 ```
 
 ---
 
-## Messages (`msg`)
+### 与 Claude Code 配合使用
 
-### Send message
-```bash
-# Send to user by email
-python3 feishu.py msg send --email user@example.com --text "Hello"
+安装并配置完成后，直接用自然语言对 Claude Code 说：
 
-# Send to user by open_id
-python3 feishu.py msg send --to ou_xxxxxxxx --text "Hello"
-
-# Send to group chat
-python3 feishu.py msg send --chat oc_xxxxxxxx --text "Hello group"
-
-# Send from file
-python3 feishu.py msg send --email user@example.com --file /tmp/msg.txt
+```
+发飞书消息给 zhang@company.com，说「今天的会议改到下午3点」
 ```
 
-### Get chat history
-```bash
-python3 feishu.py msg history --chat oc_xxxxxxxx --limit 20
+```
+创建一个飞书文档，标题「Q2 OKR 规划」
 ```
 
-### Reply to message
-```bash
-python3 feishu.py msg reply --to <message_id> --text "Reply content"
+```
+明天上午10点到11点，创建日程「产品评审会」，地点「3楼大会议室」
 ```
 
-### Search messages
-```bash
-python3 feishu.py msg search --query "关键词" --limit 20
+```
+在多维表格里查看状态为「进行中」的记录
 ```
 
-### List chats (groups + DMs)
-```bash
-python3 feishu.py msg chats --limit 50
-```
+Claude Code 会自动识别并调用对应的飞书操作。
 
 ---
 
-## Users (`user`)
+### 常用场景演示
 
-### Look up user by email
+#### 场景一：发飞书消息
+
 ```bash
-python3 feishu.py user get --email someone@example.com
-# Returns: open_id, user_id, name, avatar, etc.
+# 通过邮箱发消息
+python3 feishu.py msg send --email colleague@company.com --text "周报已提交，请查收"
+
+# 发消息到群组（chat_id 通过 msg chats 获取）
+python3 feishu.py msg send --chat oc_xxxxxxxx --text "今日站会10分钟后开始"
+
+# 发长文本（从文件读取）
+python3 feishu.py msg send --email boss@company.com --file /tmp/report.txt
+
+# 查看群聊列表
+python3 feishu.py msg chats
 ```
 
-### Look up user by open_id
+#### 场景二：创建飞书文档
+
 ```bash
-python3 feishu.py user get --id ou_xxxxxxxx
+# 创建空文档（若配置了 FEISHU_OWNER_OPEN_ID，自动授权你编辑）
+python3 feishu.py doc create --title "2026 Q2 规划"
+
+# 创建文档并写入 Markdown 内容
+python3 feishu.py doc create --title "会议记录" --file /tmp/meeting.md
+
+# 查看文档内容（document_id 在 URL 中）
+python3 feishu.py doc get --id DOC_ID
 ```
 
-### Search users by name
+#### 场景三：管理日历
+
 ```bash
-python3 feishu.py user search --name "张三"
-```
+# 查看最近7天的日程
+python3 feishu.py cal list --calendar YOUR_CALENDAR_ID
 
----
-
-## Documents (`doc`)
-
-### Create document
-```bash
-python3 feishu.py doc create --title "会议记录"
-python3 feishu.py doc create --title "报告" --folder <folder_token>
-```
-
-### Read document content
-```bash
-python3 feishu.py doc get --id <document_id>
-# document_id is in the URL: feishu.cn/docx/DOC_ID
-```
-
-### List documents in folder
-```bash
-python3 feishu.py doc list
-python3 feishu.py doc list --folder <folder_token> --limit 20
-```
-
----
-
-## Bitable / Multi-dimensional Tables (`table`)
-
-App token is in URL: `feishu.cn/base/APP_TOKEN`
-Table ID is the table identifier (from the API or UI).
-
-### List records
-```bash
-python3 feishu.py table records --app bASc1234xxx --table tblXXXX
-python3 feishu.py table records --app bASc... --table tbl... --limit 50
-
-# With filter (Feishu filter syntax)
-python3 feishu.py table records --app bASc... --table tbl... \
-  --filter 'AND(CurrentValue.[状态]="进行中")'
-```
-
-### Add record
-```bash
-python3 feishu.py table add --app bASc... --table tbl... \
-  --data '{"名称":"新项目","状态":"待开始","负责人":"张三"}'
-
-# From JSON file
-python3 feishu.py table add --app bASc... --table tbl... --file /tmp/record.json
-```
-
-### Update record
-```bash
-python3 feishu.py table update --app bASc... --table tbl... \
-  --record recXXXX --data '{"状态":"已完成"}'
-```
-
-### Delete record
-```bash
-python3 feishu.py table delete --app bASc... --table tbl... --record recXXXX
-```
-
-### List tables in app
-```bash
-python3 feishu.py table tables --app bASc...
-```
-
-### List fields in table
-```bash
-python3 feishu.py table fields --app bASc... --table tbl...
-```
-
----
-
-## Calendar (`cal`)
-
-> Note: Calendar operations use tenant access token. If "primary" calendar isn't accessible,
-> the app may need calendar permissions or the user's personal calendar_id.
-
-### List upcoming events
-```bash
-# Default: next 7 days
-python3 feishu.py cal list
-
-# Next 30 days
-python3 feishu.py cal list --days 30
-
-# Specific calendar
-python3 feishu.py cal list --calendar <calendar_id> --days 7
-```
-
-### Create event
-```bash
+# 创建日程（若配置了 FEISHU_OWNER_OPEN_ID，自动发送日历邀请给你）
 python3 feishu.py cal add \
-  --title "产品评审会" \
-  --start "2026-03-15 14:00" \
-  --end "2026-03-15 15:30"
-
-# With location and description
-python3 feishu.py cal add \
-  --title "团队午饭" \
-  --start "2026-03-15 12:00" \
-  --end "2026-03-15 13:00" \
-  --location "3楼会议室" \
-  --desc "季度复盘"
-
-# With attendees (comma-separated emails)
-python3 feishu.py cal add \
-  --title "对齐会" \
+  --title "周例会" \
   --start "2026-03-16 10:00" \
   --end "2026-03-16 11:00" \
-  --attendees "a@example.com,b@example.com"
+  --location "3楼会议室" \
+  --calendar YOUR_CALENDAR_ID
+
+# 删除日程
+python3 feishu.py cal delete --id EVENT_ID --calendar YOUR_CALENDAR_ID
 ```
 
-### Delete event
+> **如何获取 Calendar ID**：Bot 使用租户令牌，运行以下命令获取 Bot 的日历 ID：
+> ```bash
+> python3 -c "
+> import sys, os, json; sys.path.insert(0, os.path.expanduser('~/.claude/skills/feishu-lark-agent'))
+> import feishu
+> r = feishu.api('GET', '/calendar/v4/calendars', params={'page_size': 50})
+> print(json.dumps(r, ensure_ascii=False, indent=2))
+> "
+> ```
+
+#### 场景四：多维表格（Bitable）
+
 ```bash
-python3 feishu.py cal delete --id <event_id>
+# App Token 在 URL 中：feishu.cn/base/APP_TOKEN
+# 先查看字段结构，再操作
+python3 feishu.py table fields --app bASc1234xxx --table tblXXXX
+
+# 查询记录
+python3 feishu.py table records --app bASc... --table tbl...
+
+# 按条件过滤（支持飞书筛选语法）
+python3 feishu.py table records --app bASc... --table tbl... \
+  --filter 'AND(CurrentValue.[状态]="进行中")'
+
+# 新增记录
+python3 feishu.py table add --app bASc... --table tbl... \
+  --data '{"书名":"深度工作","作者":"Cal Newport","状态":"在读"}'
+
+# 更新记录
+python3 feishu.py table update --app bASc... --table tbl... \
+  --record recXXXX --data '{"状态":"已读"}'
 ```
 
----
+#### 场景五：任务管理
 
-## Tasks (`task`)
-
-> Note: Task API (v2) may require the app to have task permissions enabled.
-
-### List tasks
 ```bash
-# Active tasks
+# 查看当前任务
 python3 feishu.py task list
 
-# Completed tasks
-python3 feishu.py task list --completed true --limit 20
-```
+# 创建任务并设置截止日期
+python3 feishu.py task add --title "完成Q2复盘报告" --due "2026-03-20"
 
-### Create task
-```bash
-python3 feishu.py task add --title "完成季度报告"
+# 带备注的任务
+python3 feishu.py task add \
+  --title "准备产品演示" \
+  --due "2026-03-18 09:00" \
+  --note "需要准备30页PPT和数据看板"
 
-# With due date
-python3 feishu.py task add --title "提交报告" --due "2026-03-20"
-
-# With note
-python3 feishu.py task add --title "准备演示" --due "2026-03-18 09:00" \
-  --note "需要准备PPT和数据"
-```
-
-### Mark task as done
-```bash
-python3 feishu.py task done --id <task_guid>
-```
-
-### Delete task
-```bash
-python3 feishu.py task delete --id <task_guid>
+# 完成任务
+python3 feishu.py task done --id TASK_GUID
 ```
 
 ---
 
-## Workflow: Sending to a Person by Name
+### 完整命令速查
 
-When user says "发飞书消息给张三" but you only have a name:
-1. `user search --name "张三"` to get open_id
-2. `msg send --to <open_id> --text "..."` to send
+| 分类 | 命令 | 说明 |
+|------|------|------|
+| **消息** | `msg send` | 发送消息 |
+| | `msg history` | 获取群聊记录 |
+| | `msg reply` | 回复消息 |
+| | `msg search` | 搜索消息 |
+| | `msg chats` | 列出所有群聊 |
+| **用户** | `user get` | 按邮箱/ID 查用户 |
+| | `user search` | 按姓名搜索用户 |
+| **文档** | `doc create` | 创建文档 |
+| | `doc get` | 读取文档内容 |
+| | `doc list` | 列出文档 |
+| **多维表格** | `table records` | 查询记录 |
+| | `table add` | 新增记录 |
+| | `table update` | 更新记录 |
+| | `table delete` | 删除记录 |
+| | `table tables` | 列出所有表 |
+| | `table fields` | 查看字段结构 |
+| **日历** | `cal list` | 查看日程 |
+| | `cal add` | 创建日程 |
+| | `cal delete` | 删除日程 |
+| **任务** | `task list` | 查看任务 |
+| | `task add` | 创建任务 |
+| | `task done` | 完成任务 |
+| | `task delete` | 删除任务 |
 
-## Workflow: Working with Bitable
+---
 
-When user says "在多维表格里添加一条记录":
-1. Ask user for app_token and table_id (or check if they mentioned a URL)
-2. `table fields --app ... --table ...` to see available fields
-3. `table add --app ... --table ... --data '{...}'` to add record
+### 常见报错
 
-## Common Errors
+| 错误码 | 原因 | 解决方法 |
+|--------|------|---------|
+| `99991671` | 应用未授权该接口 | 在开发者后台开通对应权限并重新发布 |
+| `230006` | 无日历访问权限 | 开通 `calendar:calendar` 权限 |
+| `1254043` | 多维表格 App Token 错误 | 检查 URL 中的 App Token |
+| `191001` | 日历 ID 无效 | 使用 Bot 真实日历 ID，不要用 `primary` |
+| `Missing FEISHU_APP_ID` | 环境变量未加载 | 执行 `source ~/.zshrc` |
+
+---
+
+## English Docs
+
+Give Claude Code full control over Feishu/Lark — send messages, create docs, manage calendar events, and write to multi-dimensional tables, all through natural language.
+
+> Zero-dependency Python CLI using the Feishu Open API. Works best with Claude Code.
+
+### Installation
+
+```bash
+npx skills add joeseesun/feishu-lark-agent
+```
+
+---
+
+### Step 1: Create a Feishu App and get App ID + App Secret
+
+> This is the only manual step. Takes about 5 minutes.
+
+**1. Open Feishu Developer Console**
+
+Go to [https://open.feishu.cn/app](https://open.feishu.cn/app) and log in with your Feishu account.
+
+**2. Create a custom app**
+
+Click **"Create Enterprise Self-Built App"** in the top right. Fill in the app name (e.g. "My AI Assistant") and description.
+
+**3. Get App ID and App Secret**
+
+After creation, go to **"Credentials & Basic Info"** and copy:
+
+```
+App ID:     cli_xxxxxxxxxxxxxxxxx
+App Secret: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+**4. Enable permissions**
+
+Go to **"Permission Management"** and enable the permissions you need:
+
+| Permission | Purpose |
+|-----------|---------|
+| `im:message` | Read messages |
+| `im:message:send_as_bot` | Send messages as bot |
+| `docx:document` | Create/read documents |
+| `drive:drive` | Manage document permissions |
+| `bitable:app` | Bitable operations |
+| `calendar:calendar` | Calendar read/write |
+| `task:task:write` | Task management |
+| `contact:user.id:readonly` | Look up users by email |
+
+**5. Publish the app**
+
+Go to **"Version Management & Release"** → Create version → Submit for release. The enterprise admin needs to approve it (if you're the admin, you can approve immediately).
+
+---
+
+### Step 2: Get your Open ID (optional but recommended)
+
+Your Open ID (`ou_` prefix) is your unique identifier in Feishu. When set, documents and calendar events are automatically shared with you — no manual sharing needed.
+
+**Method 1: Via API (recommended)**
+
+Complete Step 3 first, then run:
+
+```bash
+python3 ~/.claude/skills/feishu-lark-agent/feishu.py user get --email your@email.com
+# The user_id field in the result is your Open ID (starts with ou_)
+```
+
+**Method 2: Via group chat**
+
+If you own a group chat:
+
+```bash
+python3 ~/.claude/skills/feishu-lark-agent/feishu.py msg chats
+# Find a group you created — owner_id is your Open ID
+```
+
+---
+
+### Step 3: Set environment variables
+
+Add to `~/.zshrc` (or `~/.bashrc`):
+
+```bash
+export FEISHU_APP_ID=cli_your_app_id
+export FEISHU_APP_SECRET=your_app_secret
+
+# Optional: auto-add yourself to docs/calendar events
+export FEISHU_OWNER_OPEN_ID=ou_your_open_id
+```
+
+Reload:
+
+```bash
+source ~/.zshrc
+```
+
+Verify setup:
+
+```bash
+python3 ~/.claude/skills/feishu-lark-agent/feishu.py msg chats
+# If you see a list of chats, you're all set ✓
+```
+
+---
+
+### Using with Claude Code
+
+Once installed, just tell Claude Code in natural language:
+
+```
+Send a Feishu message to zhang@company.com: "Meeting moved to 3pm today"
+```
+
+```
+Create a Feishu doc titled "Q2 OKR Planning"
+```
+
+```
+Schedule "Product Review" tomorrow at 10am-11am in Conference Room 3F
+```
+
+```
+Show me all "In Progress" records in my Bitable
+```
+
+Claude Code will automatically handle the rest.
+
+---
+
+### Common Scenarios
+
+#### Messaging
+
+```bash
+# Send to a user by email
+python3 feishu.py msg send --email colleague@company.com --text "Report submitted, please review"
+
+# Send to a group chat
+python3 feishu.py msg send --chat oc_xxxxxxxx --text "Standup in 10 minutes"
+
+# Send from a file
+python3 feishu.py msg send --email boss@company.com --file /tmp/report.txt
+
+# List all chats
+python3 feishu.py msg chats
+```
+
+#### Documents
+
+```bash
+# Create a document (auto-grants you edit access if FEISHU_OWNER_OPEN_ID is set)
+python3 feishu.py doc create --title "Q2 Planning"
+
+# Create from Markdown file
+python3 feishu.py doc create --title "Meeting Notes" --file /tmp/meeting.md
+
+# Read document content
+python3 feishu.py doc get --id DOC_ID_FROM_URL
+```
+
+#### Calendar
+
+```bash
+# List upcoming events
+python3 feishu.py cal list --calendar YOUR_CALENDAR_ID
+
+# Create an event (auto-invites you if FEISHU_OWNER_OPEN_ID is set)
+python3 feishu.py cal add \
+  --title "Weekly Sync" \
+  --start "2026-03-16 10:00" \
+  --end "2026-03-16 11:00" \
+  --location "Conference Room 3F" \
+  --calendar YOUR_CALENDAR_ID
+```
+
+> **How to get Calendar ID**: The bot uses a tenant access token and can only access its own calendar. Run this to find the real calendar ID:
+> ```bash
+> python3 -c "
+> import sys, os, json; sys.path.insert(0, os.path.expanduser('~/.claude/skills/feishu-lark-agent'))
+> import feishu
+> r = feishu.api('GET', '/calendar/v4/calendars', params={'page_size': 50})
+> print(json.dumps(r, indent=2))
+> "
+> ```
+
+#### Bitable (Multi-dimensional Tables)
+
+```bash
+# App Token is in the URL: feishu.cn/base/APP_TOKEN
+# Check fields first before writing
+python3 feishu.py table fields --app bASc1234xxx --table tblXXXX
+
+# Query records with filter
+python3 feishu.py table records --app bASc... --table tbl... \
+  --filter 'AND(CurrentValue.[Status]="In Progress")'
+
+# Add a record
+python3 feishu.py table add --app bASc... --table tbl... \
+  --data '{"Name":"New Project","Status":"Todo","Owner":"John"}'
+```
+
+#### Tasks
+
+```bash
+# List active tasks
+python3 feishu.py task list
+
+# Create a task with due date
+python3 feishu.py task add --title "Submit Q2 Report" --due "2026-03-20"
+
+# Mark as done
+python3 feishu.py task done --id TASK_GUID
+```
+
+---
+
+### Troubleshooting
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `API error 99991671` | App not authorized | Enable permissions in Feishu Open Platform |
-| `API error 230006` | No access to calendar | Need calendar.event:write permission |
-| `API error 1254043` | Bitable not found | Check app_token in URL |
-| `Missing FEISHU_APP_ID` | Env not loaded | `source ~/.zshrc` first |
+| `99991671` | App not authorized | Enable the required permission in developer console |
+| `230006` | No calendar access | Enable `calendar:calendar` permission |
+| `1254043` | Bitable App Token not found | Check the App Token in the URL |
+| `191001` | Invalid calendar ID | Use the bot's real calendar ID, not `primary` |
+| `Missing FEISHU_APP_ID` | Env vars not loaded | Run `source ~/.zshrc` |
 
-## App Permissions Required (Feishu Open Platform)
+---
 
-For full functionality, ensure these are enabled:
-- `im:message` - Send/read messages
-- `im:message:send_as_bot` - Send as bot
-- `docs:doc` - Create/read docs
-- `bitable:app` - Bitable operations
-- `calendar:calendar:write` - Calendar write
-- `task:task:write` - Task write
-- `contact:user.id:readonly` - User lookup
-
-## License
-
-MIT
-
-## 📱 关注作者
-
-如果这个项目对你有帮助，欢迎关注我获取更多技术分享：
+## 📱 关注作者 / Follow the Author
 
 - **X (Twitter)**: [@vista8](https://x.com/vista8)
 - **微信公众号「向阳乔木推荐看」**:
@@ -292,3 +522,7 @@ MIT
 <p align="center">
   <img src="https://github.com/joeseesun/terminal-boost/raw/main/assets/wechat-qr.jpg?raw=true" alt="向阳乔木推荐看公众号二维码" width="300">
 </p>
+
+## License
+
+MIT

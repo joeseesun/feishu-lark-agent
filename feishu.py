@@ -367,10 +367,21 @@ def cal_add(a):
         data['location'] = {'name': a.location}
     r = api('POST', f'/calendar/v4/calendars/{cal_id}/events', data)
     event_id = r.get('event', {}).get('event_id')
-    if a.attendees and event_id:
-        emails = [e.strip() for e in a.attendees.split(',')]
-        api('POST', f'/calendar/v4/calendars/{cal_id}/events/{event_id}/attendees',
-            {'attendees': [{'type': 'third_party', 'third_party_email': e} for e in emails]})
+    if event_id:
+        attendees = []
+        # Auto-add owner as attendee
+        if OWNER_OPEN_ID:
+            attendees.append({'type': 'user', 'user_id': OWNER_OPEN_ID})
+        # Add extra attendees from --attendees flag
+        if a.attendees:
+            emails = [e.strip() for e in a.attendees.split(',')]
+            attendees += [{'type': 'third_party', 'third_party_email': e} for e in emails]
+        if attendees:
+            try:
+                api('POST', f'/calendar/v4/calendars/{cal_id}/events/{event_id}/attendees',
+                    {'attendees': attendees}, {'user_id_type': 'open_id'})
+            except SystemExit:
+                pass  # Non-fatal
     out({'ok': True, 'event_id': event_id})
 
 
