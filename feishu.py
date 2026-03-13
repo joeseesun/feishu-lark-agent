@@ -418,9 +418,13 @@ def task_add(a):
     data = {'summary': a.title}
     if a.due:
         ts = parse_dt(a.due)
-        data['due'] = {'timestamp': str(ts), 'is_all_day': ':' not in a.due}
+        # Task API uses milliseconds (unlike Calendar which uses seconds)
+        data['due'] = {'timestamp': str(ts * 1000), 'is_all_day': ':' not in a.due}
     if a.note:
         data['description'] = {'text': a.note}
+    # Auto-assign to owner if FEISHU_OWNER_OPEN_ID is set
+    if OWNER_OPEN_ID:
+        data['members'] = [{'id': OWNER_OPEN_ID, 'type': 'user', 'role': 'assignee'}]
     r = api('POST', '/task/v2/tasks', data, {'user_id_type': 'open_id'})
     out({'ok': True, 'task_id': r.get('task', {}).get('guid')})
 

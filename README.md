@@ -369,6 +369,14 @@ python3 feishu.py task done --id TASK_GUID
 
 ---
 
+### 更新日志
+
+**v1.1.0**
+- 修复 `task add` 截止时间显示为 1970 年的问题（飞书任务 API 使用毫秒时间戳，与日历 API 的秒级时间戳不同）
+- `task add` 现在自动将任务分配给 `FEISHU_OWNER_OPEN_ID` 指定的用户，无需手动指定负责人
+
+---
+
 ## English Docs
 
 Give Claude Code full control over Feishu/Lark — send messages, create docs, manage calendar events, and write to multi-dimensional tables, all through natural language.
@@ -681,6 +689,14 @@ python3 feishu.py task done --id TASK_GUID
 | `1254043` | Bitable App Token not found | Check the App Token in the URL |
 | `191001` | Invalid calendar ID | Use the bot's real calendar ID, not `primary` |
 | `Missing FEISHU_APP_ID` | Env vars not loaded | Run `source ~/.zshrc` |
+
+---
+
+### Changelog
+
+**v1.1.0**
+- Fixed `task add` showing 1970 as due date (Feishu Task API uses millisecond timestamps, unlike Calendar API which uses seconds)
+- `task add` now automatically assigns the task to the user specified in `FEISHU_OWNER_OPEN_ID` — no need to manually set the assignee
 
 ---
 
