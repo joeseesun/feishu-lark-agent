@@ -82,11 +82,12 @@ table delete  --app <token>  --table <id>  --record <recXXX>
 
 ### 日历 `cal`
 ```bash
+cal calendars                                    # ⚠️ 第一步：列出 Bot 可访问的日历，获取 cal_id
 cal list   --calendar <cal_id>   [--days 7]
 cal add    --calendar <cal_id>   --title "..." --start "YYYY-MM-DD HH:MM" --end "YYYY-MM-DD HH:MM"  [--location "..."]  [--attendees "a@x.com,b@x.com"]
 cal delete --calendar <cal_id>   --id <event_id>
 ```
-> Bot 无法访问个人日历，需用 Bot 自己的日历 ID（非 `primary`）。
+> **⚠️ 重要**：Bot 无法访问个人日历（`primary` 会报错）。必须先 `cal calendars` 获取 Bot 自己的日历 ID，再用该 ID 操作。
 
 ### 任务 `task`
 ```bash
@@ -125,9 +126,16 @@ python3 feishu.py table add --app APP_TOKEN --table TABLE_ID --data '{"标题":"
 python3 feishu.py doc create --title "会议记录" --content "# 会议记录\n\n## 议题\n- 内容"
 ```
 
-**5. 查看近期日程**
+**5. 查看近期日程**（先查可用日历）
 ```bash
+python3 feishu.py cal calendars                  # 获取 Bot 的日历 ID
 python3 feishu.py cal list --calendar <cal_id> --days 7
+```
+
+**6. 创建日程**（先查日历 ID）
+```bash
+python3 feishu.py cal calendars                  # 先获取 cal_id
+python3 feishu.py cal add --calendar <cal_id> --title "周会" --start "2026-03-20 10:00" --end "2026-03-20 11:00"
 ```
 
 ---

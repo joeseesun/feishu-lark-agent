@@ -10,18 +10,20 @@ Categories:
   user   - Users (get, search)
   doc    - Documents (create, get, list)
   table  - Bitable/multi-dimensional tables (records, add, update, delete, tables)
-  cal    - Calendar (list, add, delete)
+  cal    - Calendar (calendars, list, add, delete)
   task   - Tasks (list, add, done, delete)
 """
 
 import os, sys, json, urllib.request, urllib.error, urllib.parse
-import time, tempfile, argparse
+import time, tempfile, argparse, mimetypes
 from pathlib import Path
 from datetime import datetime
 
 APP_ID = os.environ.get('FEISHU_APP_ID')
 APP_SECRET = os.environ.get('FEISHU_APP_SECRET')
 OWNER_OPEN_ID = os.environ.get('FEISHU_OWNER_OPEN_ID')
+# Support comma-separated owner IDs for multi-user auto-grant
+OWNER_IDS = [x.strip() for x in OWNER_OPEN_ID.split(',') if x.strip()] if OWNER_OPEN_ID else []
 BASE = 'https://open.feishu.cn/open-apis'
 _cache = Path(tempfile.gettempdir()) / f'.feishu_tok_{(APP_ID or "")[-8:]}.json'
 
@@ -102,17 +104,7 @@ def resolve_user(email_or_id):
 # ==================== MSG ====================
 
 def msg_send(a):
-    if a.email:
-        target = resolve_user(a.email)
-        id_type = 'open_id'
-    elif a.to:
-        target = a.to
-        id_type = 'chat_id' if a.to.startswith('oc_') else 'open_id'
-    elif a.chat:
-        target = a.chat
-        id_type = 'chat_id'
-    else:
-        die('Specify --to <open_id|chat_id>, --email <email>, or --chat <chat_id>')
+    target, id_type = _resolve_target(a)
     text = a.text or (open(a.file).read() if a.file else None)
     if not text:
         die('Specify --text or --file')
@@ -120,6 +112,72 @@ def msg_send(a):
             {'receive_id': target, 'msg_type': 'text', 'content': json.dumps({'text': text})},
             {'receive_id_type': id_type})
     out({'ok': True, 'message_id': r.get('message_id')})
+
+
+def _resolve_target(a):
+    """Resolve target (open_id or chat_id) from --to/--email/--chat flags."""
+    if a.email:
+        return resolve_user(a.email), 'open_id'
+    elif a.to:
+        return a.to, ('chat_id' if a.to.startswith('oc_') else 'open_id')
+    elif a.chat:
+        return a.chat, 'chat_id'
+    else:
+        die('Specify --to <open_id|chat_id>, --email <email>, or --chat <chat_id>')
+
+
+def _upload_image(filepath):
+    """Upload image to Feishu, return image_key."""
+    tok = _token()
+    with open(filepath, 'rb') as f:
+        data = f.read()
+    boundary = f'----FeishuBoundary{int(time.time() * 1000)}'
+    filename = os.path.basename(filepath)
+    mime = mimetypes.guess_type(filename)[0] or 'image/png'
+    body = (
+        f'--{boundary}\r\n'
+        f'Content-Disposition: form-data; name="image_type"\r\n\r\nmessage\r\n'
+        f'--{boundary}\r\n'
+        f'Content-Disposition: form-data; name="image"; filename="{filename}"\r\n'
+        f'Content-Type: {mime}\r\n\r\n'
+    ).encode() + data + f'\r\n--{boundary}--\r\n'.encode()
+    req = urllib.request.Request(
+        BASE + '/im/v1/images', data=body, method='POST',
+        headers={
+            'Content-Type': f'multipart/form-data; boundary={boundary}',
+            'Authorization': f'Bearer {tok}',
+        })
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            r = json.loads(resp.read())
+            if r.get('code', 0) != 0:
+                die(f"Image upload error {r.get('code')}: {r.get('msg')}")
+            return r['data']['image_key']
+    except urllib.error.HTTPError as e:
+        die(f"Image upload HTTP {e.code}: {e.read().decode()[:500]}")
+
+
+def msg_send_image(a):
+    """Upload a local image and send it as an image message."""
+    if not a.image:
+        die('Specify --image <path-to-image>')
+    filepath = os.path.expanduser(a.image)
+    if not os.path.isfile(filepath):
+        die(f'Image not found: {filepath}')
+    target, id_type = _resolve_target(a)
+    image_key = _upload_image(filepath)
+    r = api('POST', '/im/v1/messages',
+            {'receive_id': target, 'msg_type': 'image',
+             'content': json.dumps({'image_key': image_key})},
+            {'receive_id_type': id_type})
+    # Optionally send caption text
+    msg_id = r.get('message_id')
+    if a.text:
+        api('POST', '/im/v1/messages',
+            {'receive_id': target, 'msg_type': 'text',
+             'content': json.dumps({'text': a.text})},
+            {'receive_id_type': id_type})
+    out({'ok': True, 'message_id': msg_id, 'image_key': image_key})
 
 
 def msg_history(a):
@@ -223,8 +281,8 @@ def _grant_doc_permission(doc_id, open_id, perm='full_access'):
         api('POST', f'/drive/v1/permissions/{doc_id}/members',
             {'member_type': 'openid', 'member_id': open_id, 'perm': perm},
             {'type': 'docx', 'need_notification': 'false'})
-    except SystemExit:
-        pass  # Non-fatal: doc created, permission grant failed
+    except SystemExit as e:
+        print(f"⚠ Permission grant failed for {open_id}: {e}", file=sys.stderr)
 
 
 def _write_blocks(doc_id, blocks):
@@ -249,10 +307,14 @@ def doc_create(a):
         if blocks:
             _write_blocks(doc_id, blocks)
 
-    # Auto-grant edit permission to owner
-    share_to = getattr(a, 'share_to', None) or OWNER_OPEN_ID
-    if share_to and doc_id:
-        _grant_doc_permission(doc_id, share_to)
+    # Auto-grant edit permission to owners
+    share_to = getattr(a, 'share_to', None)
+    if doc_id:
+        if share_to:
+            _grant_doc_permission(doc_id, share_to)
+        for oid in OWNER_IDS:
+            if oid != share_to:
+                _grant_doc_permission(doc_id, oid)
 
     out({'ok': True, 'document_id': doc_id, 'url': url})
 
@@ -331,6 +393,15 @@ def table_fields(a):
 
 # ==================== CALENDAR ====================
 
+def cal_calendars(a):
+    """List all calendars the bot can access."""
+    r = api('GET', '/calendar/v4/calendars', params={'page_size': 50})
+    cals = [{'id': c.get('calendar_id'), 'summary': c.get('summary'),
+             'type': c.get('type'), 'role': c.get('role')}
+            for c in r.get('calendar_list', [])]
+    out({'calendars': cals})
+
+
 def cal_list(a):
     now = int(time.time())
     days = int(a.days or 7)
@@ -369,9 +440,9 @@ def cal_add(a):
     event_id = r.get('event', {}).get('event_id')
     if event_id:
         attendees = []
-        # Auto-add owner as attendee
-        if OWNER_OPEN_ID:
-            attendees.append({'type': 'user', 'user_id': OWNER_OPEN_ID})
+        # Auto-add owners as attendees
+        for oid in OWNER_IDS:
+            attendees.append({'type': 'user', 'user_id': oid})
         # Add extra attendees from --attendees flag
         if a.attendees:
             emails = [e.strip() for e in a.attendees.split(',')]
@@ -422,9 +493,9 @@ def task_add(a):
         data['due'] = {'timestamp': str(ts * 1000), 'is_all_day': ':' not in a.due}
     if a.note:
         data['description'] = a.note
-    # Auto-assign to owner if FEISHU_OWNER_OPEN_ID is set
-    if OWNER_OPEN_ID:
-        data['members'] = [{'id': OWNER_OPEN_ID, 'type': 'user', 'role': 'assignee'}]
+    # Auto-assign to all owners if FEISHU_OWNER_OPEN_ID is set
+    if OWNER_IDS:
+        data['members'] = [{'id': oid, 'type': 'user', 'role': 'assignee'} for oid in OWNER_IDS]
     r = api('POST', '/task/v2/tasks', data, {'user_id_type': 'open_id'})
     out({'ok': True, 'task_id': r.get('task', {}).get('guid')})
 
@@ -447,6 +518,7 @@ def task_delete(a):
 
 COMMANDS = {
     'msg send': msg_send,
+    'msg send_image': msg_send_image,
     'msg history': msg_history,
     'msg reply': msg_reply,
     'msg search': msg_search,
@@ -462,6 +534,7 @@ COMMANDS = {
     'table delete': table_delete,
     'table tables': table_tables,
     'table fields': table_fields,
+    'cal calendars': cal_calendars,
     'cal list': cal_list,
     'cal add': cal_add,
     'cal delete': cal_delete,
@@ -474,7 +547,7 @@ COMMANDS = {
 ATTRS = ['to', 'email', 'text', 'file', 'chat', 'id', 'query', 'name', 'title',
          'content', 'folder', 'app', 'table', 'record', 'data', 'filter', 'sort', 'revision_id',
          'limit', 'days', 'start', 'end', 'desc', 'location', 'calendar', 'note',
-         'due', 'completed', 'tasklist', 'attendees', 'share_to']
+         'due', 'completed', 'tasklist', 'attendees', 'share_to', 'image']
 
 
 def main():
